@@ -96,9 +96,9 @@ main (int argc, char *argv[])
 		 strftime(iso80601_dt_buf, sizeof(iso80601_dt_buf), "%FT%T", localtime(&start_tp.tv_sec));
 		 iso80601_dt_buf[sizeof(iso80601_dt_buf)] = '\0';
 		 int milli = start_tp.tv_usec / 1000;
-		 sprintf(iso80601_dt_buf + 19, ".%d", milli);
+		 sprintf(iso80601_dt_buf + 19, ".%03d", milli);
 		 strftime(iso80601_dt_buf + 23, 6, "%z\0", localtime(&start_tp.tv_sec));
-         fprintf (stdout, "_id:%d\t%s\t%u\t%u\n", ids_array[i], iso80601_dt_buf, elapsed_usecs[i], doc->len);
+         fprintf (stdout, "{_id:%d}\t%s\t%u\t%u\n", ids_array[i], iso80601_dt_buf, elapsed_usecs[i], doc->len);
       } else {
          elapsed_usecs[i] = -1;
 		 fprintf (stderr, "No document for _id: %d was found\n", ids_array[i]);
