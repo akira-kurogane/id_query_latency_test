@@ -6,6 +6,26 @@
 #include <mongoc.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
+
+int* 
+init_ids_array(size_t* ret_len)
+{
+	size_t tl = 100; //temp buffer size. Will be doubled repeatedly if necessary.
+	int* a = calloc(tl, sizeof(int));
+	size_t count = 0;
+	size_t i;
+	for (i = 1; i <= 65; i++) {  //this sequence is just a dummy one for early development
+		a[count++] = i;
+		if (count == tl) {
+			tl *= 2;
+			a = realloc(a, tl * sizeof(int));
+		}
+	}
+	*ret_len = count;
+	a = realloc(a, count * sizeof(int));
+	return a;
+}
 
 int
 main (int argc, char *argv[])
@@ -18,7 +38,6 @@ main (int argc, char *argv[])
    const char *uristr = "mongodb://127.0.0.1:27017/productpersistdb?appname=client-example";
    const char *collection_name = "product";
    bson_t query;
-   char *str;
 
    mongoc_init ();
 
@@ -39,30 +58,51 @@ main (int argc, char *argv[])
 
    mongoc_client_set_error_api (client, 2);
 
-   bson_init (&query);
+   collection = mongoc_client_get_collection (client, "productpersistdb", collection_name);
 
-#if 0
-   bson_append_utf8 (&query, "hello", -1, "world", -1);
-#endif
+   size_t ids_array_len;
+   int* ids_array = init_ids_array(&ids_array_len);
+   suseconds_t* elapsed_usecs = calloc(ids_array_len, sizeof(suseconds_t));
+   char iso80601_dt_buf[sizeof "YYYY-mm-ddTHH:MM:SS.mmm+OOOO\0"];
 
-   collection = mongoc_client_get_collection (client, "test", collection_name);
-   cursor = mongoc_collection_find_with_opts (
-      collection,
-      &query,
-      NULL,  /* additional options */
-      NULL); /* read prefs, NULL for default */
+   size_t i;
+   for (i = 0; i < ids_array_len; ++i) {
 
-   while (mongoc_cursor_next (cursor, &doc)) {
-      str = bson_as_json (doc, NULL);
-      fprintf (stdout, "%s\n", str);
-      bson_free (str);
-   }
+      bson_init (&query);
+      bson_append_int32(&query, "_id", -1, ids_array[i]);
+   
+	  struct timeval start_tp;
+	  gettimeofday(&start_tp, NULL);
 
-   if (mongoc_cursor_error (cursor, &error)) {
-      fprintf (stderr, "Cursor Failure: %s\n", error.message);
-      return EXIT_FAILURE;
-   }
+      cursor = mongoc_collection_find_with_opts (
+         collection,
+         &query,
+         NULL,  /* additional options */
+         NULL); /* read prefs, NULL for default */
 
+      if (mongoc_cursor_next (cursor, &doc)) {
+	     struct timeval end_tp;
+	     gettimeofday(&end_tp, NULL);
+         elapsed_usecs[i] = ((end_tp.tv_sec - start_tp.tv_sec) * 1000000) + (end_tp.tv_usec - start_tp.tv_usec);
+		 strftime(iso80601_dt_buf, sizeof(iso80601_dt_buf), "%FT%T", localtime(&start_tp.tv_sec));
+		 iso80601_dt_buf[sizeof(iso80601_dt_buf)] = '\0';
+		 int milli = start_tp.tv_usec / 1000;
+		 sprintf(iso80601_dt_buf + 19, ".%d", milli);
+		 strftime(iso80601_dt_buf + 23, 6, "%z\0", localtime(&start_tp.tv_sec));
+         fprintf (stdout, "_id:%d\t%s\t%u\t%u\n", ids_array[i], iso80601_dt_buf, elapsed_usecs[i], doc->len);
+      } else {
+         elapsed_usecs[i] = -1;
+		 fprintf (stderr, "No document for _id: %d was found\n", ids_array[i]);
+	  }
+   
+      if (mongoc_cursor_error (cursor, &error)) {
+         fprintf (stderr, "Cursor Failure: %s\n", error.message);
+         return EXIT_FAILURE;
+      }
+
+   } //end while(ids_array[i])
+
+   free(ids_array);
    bson_destroy (&query);
    mongoc_cursor_destroy (cursor);
    mongoc_collection_destroy (collection);
