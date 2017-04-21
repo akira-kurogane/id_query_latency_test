@@ -15,7 +15,7 @@ init_ids_array(size_t* ret_len)
 	int* a = calloc(tl, sizeof(int));
 	size_t count = 0;
 	size_t i;
-	for (i = 1; i <= 65; i++) {  //this sequence is just a dummy one for early development
+	for (i = 1; i <= 200; i++) {  //this sequence is just a dummy one for early development
 		a[count++] = i;
 		if (count == tl) {
 			tl *= 2;
@@ -25,6 +25,15 @@ init_ids_array(size_t* ret_len)
 	*ret_len = count;
 	a = realloc(a, count * sizeof(int));
 	return a;
+}
+
+int comp_susec(const void * elem1, const void * elem2) 
+{
+    suseconds_t a = *((suseconds_t*)elem1);
+    suseconds_t b = *((suseconds_t*)elem2);
+    if (a > b) return  1;
+    if (a < b) return -1;
+    return 0;
 }
 
 int
@@ -109,6 +118,19 @@ main (int argc, char *argv[])
    mongoc_client_destroy (client);
 
    mongoc_cleanup ();
+
+   if (ids_array_len < 100) {
+      fprintf(stderr, "Less than 100 queries executed. Skipping the slowest times by percentile report due to lack of significant sample size.\n");
+   } else {
+      qsort (elapsed_usecs, ids_array_len, sizeof(suseconds_t), comp_susec);
+      size_t idx1 = (size_t)(0.50 * (float)ids_array_len);
+      size_t idx2 = (size_t)(0.75 * (float)ids_array_len);
+      size_t idx3 = (size_t)(0.90 * (float)ids_array_len);
+      size_t idx4 = (size_t)(0.95 * (float)ids_array_len);
+      size_t idx5 = (size_t)(0.99 * (float)ids_array_len);
+      fprintf(stdout, "P50: %u, P75: %u, P90: %u, P95: %u, P99: %u\n", elapsed_usecs[idx1], 
+              elapsed_usecs[idx2], elapsed_usecs[idx3], elapsed_usecs[idx4], elapsed_usecs[idx5]);
+   }
 
    return EXIT_SUCCESS;
 }
