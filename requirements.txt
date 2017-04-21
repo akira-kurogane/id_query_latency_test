@@ -1,0 +1,80 @@
+* C or Java code source
+* reads a list of _id values enumerated in a text file as decimal strings
+* query each document by _id and record the RTT and document size
+* report the P50 / P75 / P85 / P95 / P99 stats for the application's experienced query RTT
+* read preference - set nearest
+
+PGS Cluster Acceptance-Test Requirements
+
+What are the PGS cluster's acceptance-test performance requirements?
+
+Here are the requirements we've assembled incrementally, can you please review and then update w/ the needed details and approve or amend as appropriate?
+
+* document size 26KB, query SLA P99 < 10 ms (currently measured P99 < 12-13 ms w/ localThreshold=2, default conn pool, 3.4.4-x)
+* document size 1 MB ( "5% of the time"), query SLA has not been explicitly communicated to MongoDB
+* what are the size vs. app-query-RTT distribution expectations of other document sizes / SLAs to consider?
+* We would like to have a phone call with your PD dev team lead Yonatan to discuss these requirements and any other needs eBay might have - would that be possible this evening or tomorrow?
+
+--- Yonatan ---
+
+The experiments were done using two lists of 1000 ids:
+
+A list of ids of documents of "normal" size (300-500kb)
+A list of ids of documents of "huge" size (1-3mb)
+For each request being done to the application, two database queries are invoked: a small one (getmetadata), followed by a larger one (getproduct). In the summary.txt you can see the actual queries. The expected 99% SLA for the small query is 5-6ms, and the expect 99% SLA for the large one is 10-11ms.
+
+I've send to the application in a constant rate IDs that were picked randomally from the list.
+
+In the "huge" condition, I've sent 10 requests/s for 90 seconds - seeing DB 99% latency of 18ms for the small query, and 47ms for the large query.
+In the "normal" condition, I've sent 100 requests/s for 90 seconds - seeing DB 99% latency of 4ms for the small query, and 9ms for the large query.
+I've sampled from the application log file for each of the conditions+query type a query, and performed the following analysis:
+
+I've connected to the local mongos from within the machine (i.e. mongo mongodb://localhost:27017/productpersistdb)
+I've set the mongo for "nearest" read preference
+Within the mongo cli, I've performed multiple explain("executionStats") queries, and recorded the execution time + server hostname
+Wrote down the projected document size + full document size (see in the summary.txt file)
+For the huge condition, large query:
+
+The document size is 3mb
+The projection size is 460kb
+The "explain" execution time on the first reading from a replica takes 8ms, the second time takes 1ms
+The logged query time took 42ms
+For the huge condition, small query:
+
+The document size is 3mb
+The projection size is 12kb
+The "explain" execution time on the first reading from a replica takes 6-11ms, the second time takes 1ms
+The logged query time took 17ms
+For the normal condition, large query:
+
+The document size is 400kb
+The projection size is 65kb
+The "explain" execution time always takes 1ms
+The logged query time took 5ms
+For the normal condition, small query:
+
+The document size is 390kb
+The projection size is 2kb
+The "explain" execution time always takes 1ms
+The logged query time took 2ms
+
+My questions:
+Should we expect such latencies for documents of sizes 1-4mb? Can we do better?
+Even if try to explain the incline of latencies by the size of the results, the "huge"+small query result is smaller than the "normal"+large query results, and yet, the "huge"+small query 99% is slower than the "normal"+large query 99% latency. I suspect it has to do with the time mongo takes to read a large document from the disk. Is that an expected behavior? Again, can we do better?
+
+--- Summary ---
+
+* C program, to minimize the time used by the app outside of waiting for db responses.
+* Supports all the following connections parameters. (I think all of these could be replaced with one mongodb URI string.)
+  * host, port, username (default "dba"), password (default "xxx"), authentication db (default "admin")
+  * db name (default "productpersistdb").
+  * Optional replset name (not needed when connecting to mongos node)
+  * read preference
+  * localThresholdMS (default 15)
+* Other parameters
+  * "--collection" name parameter (default "product").
+  * "--ids-file". For the file with a list of decimal _id values enumerated as decimal strings.
+  * "--count". The number of queries to run. Defaults to be the length of the ids list from file. Would repeat the ids if larger than the id list; terminate early if less than.
+  * "--sleepMS" for time to pause between queries. Default 0.
+* query each document by _id and record the RTT and document size
+* report the P50 / P75 / P85 / P95 / P99 stats for the application's experienced query RTT
