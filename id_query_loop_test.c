@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include "id_query_loop_test_opts.h"
 
 int* 
 init_ids_array(size_t* ret_len)
@@ -36,29 +37,67 @@ int comp_susec(const void * elem1, const void * elem2)
     return 0;
 }
 
+void print_usage(FILE* fstr) {
+  fprintf(fstr, "Usage: id_query_loop_test [options] <file of ids to query>\n");
+}
+
+void print_desc() {
+  printf("In a loop will query db.collection.find({ _id: <decimal_id_value>}) \n\
+  and output the id, the time, the time elapsed in microsecs, and the matching \n\
+  document's byte size.\n\
+  The final line of output will be slowest times by several percentiles.\n");
+}
+
 int
 main (int argc, char *argv[])
 {
+   int opt_err_flag = 0;
+   int nonopt_arg_idx = parse_cmd_options(argc, argv, &opt_err_flag);
+
+   if (help_flag) {
+      print_usage(stdout);
+      printf("\n");
+      print_desc();
+      printf("\n");
+      print_options_help();
+      free_options;
+      exit(EXIT_SUCCESS);
+   } else if (opt_err_flag || nonopt_arg_idx >= argc) {
+      print_usage(stderr);
+      exit(EXIT_FAILURE);
+   }
+dump_cmd_options();
+
+/*
+char* ids_filepath;
+int iteration_count;
+int sleep_ms;*/
+  if (!conn_uri && !ids_filepath && !collection_name) {
+	fprintf(stderr, "Aborting. One or more of the neccesary --conn-uri, --ids-file and coll-name arguments was absent.\n");
+	fprintf(stderr, "Try --help for options description\n");
+    print_usage(stderr);
+    exit(EXIT_FAILURE);
+  }
    mongoc_client_t *client;
    mongoc_collection_t *collection;
    mongoc_cursor_t *cursor;
    bson_error_t error;
    const bson_t *doc;
-   const char *uristr = "mongodb://127.0.0.1:27017/productpersistdb?appname=client-example";
-   const char *collection_name = "product";
+   //const char *conn_uri = "mongodb://127.0.0.1:27017/productpersistdb?appname=client-example";
+   //const char *collection_name = "product";
    bson_t query;
 
    mongoc_init ();
 
    if (argc > 1) {
-      uristr = argv[1];
+      conn_uri = argv[1];
    }
 
    if (argc > 2) {
       collection_name = argv[2];
    }
 
-   client = mongoc_client_new (uristr);
+   client = mongoc_client_new(conn_uri);
 
    if (!client) {
       fprintf (stderr, "Failed to parse URI.\n");
