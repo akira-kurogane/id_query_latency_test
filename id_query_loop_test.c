@@ -10,19 +10,13 @@
 #include "id_query_loop_test_opts.h"
 
 int* 
-init_ids_array(size_t* ret_len)
+init_ids_array(const char* ids_filepath, size_t* ret_len)
 {
 	size_t tl = 100; //temp buffer size. Will be doubled repeatedly if necessary.
 	int* a = calloc(tl, sizeof(int));
 	size_t count = 0;
-	size_t i;
-	for (i = 1; i <= 200; i++) {  //this sequence is just a dummy one for early development
-		a[count++] = i;
-		if (count == tl) {
-			tl *= 2;
-			a = realloc(a, tl * sizeof(int));
-		}
-	}
+
+	//int fd = fopen(ids_filepath);
 	*ret_len = count;
 	a = realloc(a, count * sizeof(int));
 	return a;
@@ -60,7 +54,7 @@ main (int argc, char *argv[])
       print_desc();
       printf("\n");
       print_options_help();
-      free_options;
+      free_options();
       exit(EXIT_SUCCESS);
    } else if (opt_err_flag || nonopt_arg_idx >= argc) {
       print_usage(stderr);
@@ -69,11 +63,10 @@ main (int argc, char *argv[])
 dump_cmd_options();
 
 /*
-char* ids_filepath;
 int iteration_count;
 int sleep_ms;*/
-  if (!conn_uri && !ids_filepath && !collection_name) {
-	fprintf(stderr, "Aborting. One or more of the neccesary --conn-uri, --ids-file and coll-name arguments was absent.\n");
+  if (!conn_uri || !collection_name) {
+	fprintf(stderr, "Aborting. One or both of the neccesary --conn-uri and --collection arguments was absent.\n");
 	fprintf(stderr, "Try --help for options description\n");
     print_usage(stderr);
     exit(EXIT_FAILURE);
@@ -87,7 +80,7 @@ int sleep_ms;*/
    //const char *collection_name = "product";
    bson_t query;
 
-   mongoc_init ();
+   mongoc_init();
 
    if (argc > 1) {
       conn_uri = argv[1];
@@ -109,7 +102,12 @@ int sleep_ms;*/
    collection = mongoc_client_get_collection (client, "productpersistdb", collection_name);
 
    size_t ids_array_len;
-   int* ids_array = init_ids_array(&ids_array_len);
+   int* ids_array = init_ids_array(argv[nonopt_arg_idx], &ids_array_len);
+   if (ids_array_len <= 0) {
+      fprintf (stderr, "No ids were loaded from file %\n", argv[nonopt_arg_idx]);
+      return EXIT_FAILURE;
+   }
+
    suseconds_t* elapsed_usecs = calloc(ids_array_len, sizeof(suseconds_t));
    char iso80601_dt_buf[sizeof "YYYY-mm-ddTHH:MM:SS.mmm+OOOO\0"];
 
@@ -159,7 +157,7 @@ int sleep_ms;*/
    mongoc_cleanup ();
 
    if (ids_array_len < 100) {
-      fprintf(stderr, "Less than 100 queries executed. Skipping the slowest times by percentile report due to lack of significant sample size.\n");
+      fprintf(stderr, "Less than 100 queries executed. Skipping the slowest-times-by-percentile report due to insufficient sample size.\n");
    } else {
       qsort (elapsed_usecs, ids_array_len, sizeof(suseconds_t), comp_susec);
       size_t idx1 = (size_t)(0.50 * (float)ids_array_len);
@@ -171,5 +169,6 @@ int sleep_ms;*/
               elapsed_usecs[idx2], elapsed_usecs[idx3], elapsed_usecs[idx4], elapsed_usecs[idx5]);
    }
 
+   free_options();
    return EXIT_SUCCESS;
 }

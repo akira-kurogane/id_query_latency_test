@@ -7,8 +7,6 @@
 void init_options() {
   conn_uri = malloc(1);
   conn_uri = NULL;
-  ids_filepath = malloc(1);
-  ids_filepath = NULL;
   collection_name = malloc(1);
   collection_name = NULL;
   iteration_count = 0;
@@ -16,11 +14,7 @@ void init_options() {
 }
 
 void free_options() {
-  int i;
-  char* p;
-
   free(conn_uri);
-  free(ids_filepath);
   free(collection_name);
 }
 
@@ -38,7 +32,6 @@ int parse_cmd_options(int argc, char **argv, int* err_flag) {
     static struct option long_options[] = {
       {"help",        no_argument, &help_flag,    1},
       {"conn-uri",    required_argument, 0, 'm'},
-      {"ids-file",    required_argument, 0, 'f'},
       {"collection",  required_argument, 0, 'c'},
       {"count",       required_argument, 0, 'n'},
       {"sleep-ms",    required_argument, 0, 's'},
@@ -74,16 +67,6 @@ int parse_cmd_options(int argc, char **argv, int* err_flag) {
         if (conn_uri && strlen(conn_uri) == 0) {
           free(conn_uri);
           conn_uri = NULL;
-        }
-        break;
-
-      case 'f':
-        ids_filepath = realloc(ids_filepath, strlen(optarg) + 1);
-        strcpy(ids_filepath, optarg);
-        //sanity enforcement
-        if (ids_filepath && strlen(ids_filepath) == 0) {
-          free(ids_filepath);
-          ids_filepath = NULL;
         }
         break;
 
@@ -125,10 +108,9 @@ void dump_cmd_options() {
 
   printf("help        = %s\n", help_flag ? "true" : "false");
   printf("conn-uri    = \"%s\"\n", conn_uri);
-  printf("ids-file    = \"%s\"\n", ids_filepath);
   printf("collection  = \"%s\"\n", collection_name);
-  printf("count       = \"%d\"\n", iteration_count);
-  printf("sleep-ms    = \"%d\"\n", sleep_ms);
+  printf("count       = %d\n", iteration_count);
+  printf("sleep-ms    = %d\n", sleep_ms);
 }
 
 void print_options_help() {
@@ -140,8 +122,6 @@ void print_options_help() {
     using one), read preference, and more advance options such as \n\
     localThresholdMS.\n\
     See https://docs.mongodb.com/manual/reference/connection-string/\n\
-  -f, --ids-file\n\
-    Path to file containing ids in decimal strings, one per line.\n\
   -c, --collection \n\
     Name of the collection to query on. N.b. database name is selected \n\
     with the --conn-uri parameter.\n\
