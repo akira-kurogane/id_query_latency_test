@@ -13,26 +13,23 @@ long*
 init_ids_array(const char* ids_filepath, size_t* ret_len)
 {
 	size_t tl = 100; //temp buffer size. Will be doubled repeatedly if necessary.
-	long* a = calloc(tl, sizeof(long));
+	long* a = malloc(tl * sizeof(long));
 	size_t count = 0;
-    long i;
+    long x;
 
-    a[count++] = 5321210;
-    a[count++] = 3799250;
-    a[count++] = 7985717;
-    a[count++] = 8108690;
-    a[count++] = 7523996;
-    a[count++] = 8431412;
-    a[count++] = 126983;
-	/*FILE* fp = fopen(ids_filepath, "r");
-    if (fp != NULL) {
+	FILE* fp;
+    if ((fp = fopen(ids_filepath, "r")) != NULL) {
        while (!feof(fp)) {
-          if (fscanf(fp, "%ld", &i) == 1) {
-             a[count++] = i;
+          if (fscanf(fp, "%ld", &x) == 1) {
+             a[count++] = x;
+          }
+          if (tl == count) {
+             tl *= 2;
+             a = realloc(a, tl * sizeof(long));
           }
        }
-       fclose(fp);
-    }*/
+    }
+    fclose(fp);
 
 	*ret_len = count;
 	a = realloc(a, count * sizeof(long));
