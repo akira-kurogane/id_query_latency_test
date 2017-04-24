@@ -67,11 +67,11 @@ Even if try to explain the incline of latencies by the size of the results, the 
 * C program, to minimize the time used by the app outside of waiting for db responses.
 * Supports all the following connections parameters. (I think all of these could be replaced with one mongodb URI string.)
   * host, port, username (default "dba"), password (default "xxx"), authentication db (default "admin")
-  * db name (default "productpersistdb").
   * Optional replset name (not needed when connecting to mongos node)
   * read preference
   * localThresholdMS (default 15)
 * Other parameters
+  * "--database" name parameter (default "productpersistdb").
   * "--collection" name parameter (default "product").
   * "--ids-file". For the file with a list of decimal _id values enumerated as decimal strings.
   * "--count". The number of queries to run. Defaults to be the length of the ids list from file. Would repeat the ids if larger than the id list; terminate early if less than.
