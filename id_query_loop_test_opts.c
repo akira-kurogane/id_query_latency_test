@@ -7,6 +7,8 @@
 void init_options() {
   conn_uri = malloc(1);
   conn_uri = NULL;
+  database_name = malloc(1);
+  database_name = NULL;
   collection_name = malloc(1);
   collection_name = NULL;
   iteration_count = 0;
@@ -15,6 +17,7 @@ void init_options() {
 
 void free_options() {
   free(conn_uri);
+  free(database_name);
   free(collection_name);
 }
 
@@ -32,6 +35,7 @@ int parse_cmd_options(int argc, char **argv, int* err_flag) {
     static struct option long_options[] = {
       {"help",        no_argument, &help_flag,    1},
       {"conn-uri",    required_argument, 0, 'm'},
+      {"database",    required_argument, 0, 'd'},
       {"collection",  required_argument, 0, 'c'},
       {"count",       required_argument, 0, 'n'},
       {"sleep-ms",    required_argument, 0, 's'},
@@ -40,7 +44,7 @@ int parse_cmd_options(int argc, char **argv, int* err_flag) {
     /* getopt_long stores the option index here. */
     int option_index = 0;
 
-    c = getopt_long(argc, argv, "m:f:c:n:s:", long_options, &option_index);
+    c = getopt_long(argc, argv, "m:d:c:n:s:", long_options, &option_index);
 
     /* Detect the end of the options. */
     if (c == -1)
@@ -67,6 +71,16 @@ int parse_cmd_options(int argc, char **argv, int* err_flag) {
         if (conn_uri && strlen(conn_uri) == 0) {
           free(conn_uri);
           conn_uri = NULL;
+        }
+        break;
+
+      case 'd':
+        database_name = realloc(database_name, strlen(optarg) + 1);
+        strcpy(database_name, optarg);
+        //sanity enforcement
+        if (database_name && strlen(database_name) == 0) {
+          free(database_name);
+          database_name = NULL;
         }
         break;
 
@@ -108,6 +122,7 @@ void dump_cmd_options() {
 
   printf("help        = %s\n", help_flag ? "true" : "false");
   printf("conn-uri    = \"%s\"\n", conn_uri);
+  printf("database    = \"%s\"\n", database_name);
   printf("collection  = \"%s\"\n", collection_name);
   printf("count       = %d\n", iteration_count);
   printf("sleep-ms    = %d\n", sleep_ms);
@@ -118,13 +133,14 @@ void print_options_help() {
   --help This message\n\
   -m, --conn-uri\n\
     The connection string in mongodb URI format. Use to specify host, port, \n\
-    username, password, authentication db, database name, replset name (if \n\
-    using one), read preference, and more advance options such as \n\
-    localThresholdMS.\n\
+    username, password, authentication db, replset name (if using one), \n\
+    read preference, and more advanced options such as ssl, timeouts, \n\
+    localThresholdMS, etc.\n\
     See https://docs.mongodb.com/manual/reference/connection-string/\n\
+  -d, --database \n\
+    Name of the database to query on.\n\
   -c, --collection \n\
-    Name of the collection to query on. N.b. database name is selected \n\
-    with the --conn-uri parameter.\n\
+    Name of the collection to query on.\n\
   -n, --count\n\
     The number of queries to run. Optional. By default it will be one \n\
     iteration of all ids in the --ids-file file.\n\

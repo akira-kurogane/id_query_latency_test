@@ -9,16 +9,33 @@
 #include <sys/time.h>
 #include "id_query_loop_test_opts.h"
 
-int* 
+long* 
 init_ids_array(const char* ids_filepath, size_t* ret_len)
 {
 	size_t tl = 100; //temp buffer size. Will be doubled repeatedly if necessary.
-	int* a = calloc(tl, sizeof(int));
+	long* a = calloc(tl, sizeof(long));
 	size_t count = 0;
+    long i;
 
-	//int fd = fopen(ids_filepath);
+    a[count++] = 5321210;
+    a[count++] = 3799250;
+    a[count++] = 7985717;
+    a[count++] = 8108690;
+    a[count++] = 7523996;
+    a[count++] = 8431412;
+    a[count++] = 126983;
+	/*FILE* fp = fopen(ids_filepath, "r");
+    if (fp != NULL) {
+       while (!feof(fp)) {
+          if (fscanf(fp, "%ld", &i) == 1) {
+             a[count++] = i;
+          }
+       }
+       fclose(fp);
+    }*/
+
 	*ret_len = count;
-	a = realloc(a, count * sizeof(int));
+	a = realloc(a, count * sizeof(long));
 	return a;
 }
 
@@ -60,35 +77,30 @@ main (int argc, char *argv[])
       print_usage(stderr);
       exit(EXIT_FAILURE);
    }
-dump_cmd_options();
+//dump_cmd_options();
 
-/*
-int iteration_count;
-int sleep_ms;*/
-  if (!conn_uri || !collection_name) {
-	fprintf(stderr, "Aborting. One or both of the neccesary --conn-uri and --collection arguments was absent.\n");
+  if (!conn_uri || !database_name || !collection_name) {
+	fprintf(stderr, "Aborting. One or more of the neccesary --conn-uri, --database and --collection arguments was absent.\n");
 	fprintf(stderr, "Try --help for options description\n");
     print_usage(stderr);
     exit(EXIT_FAILURE);
   }
+
+   size_t ids_array_len;
+   long* ids_array = init_ids_array(argv[nonopt_arg_idx], &ids_array_len);
+   if (ids_array_len <= 0) {
+      fprintf (stderr, "No ids were loaded from file %\n", argv[nonopt_arg_idx]);
+      return EXIT_FAILURE;
+   }
+
    mongoc_client_t *client;
    mongoc_collection_t *collection;
    mongoc_cursor_t *cursor;
    bson_error_t error;
    const bson_t *doc;
-   //const char *conn_uri = "mongodb://127.0.0.1:27017/productpersistdb?appname=client-example";
-   //const char *collection_name = "product";
    bson_t query;
 
    mongoc_init();
-
-   if (argc > 1) {
-      conn_uri = argv[1];
-   }
-
-   if (argc > 2) {
-      collection_name = argv[2];
-   }
 
    client = mongoc_client_new(conn_uri);
 
@@ -99,26 +111,24 @@ int sleep_ms;*/
 
    mongoc_client_set_error_api (client, 2);
 
-   collection = mongoc_client_get_collection (client, "productpersistdb", collection_name);
+   collection = mongoc_client_get_collection (client, database_name, collection_name);
 
-   size_t ids_array_len;
-   int* ids_array = init_ids_array(argv[nonopt_arg_idx], &ids_array_len);
-   if (ids_array_len <= 0) {
-      fprintf (stderr, "No ids were loaded from file %\n", argv[nonopt_arg_idx]);
-      return EXIT_FAILURE;
-   }
-
-   suseconds_t* elapsed_usecs = calloc(ids_array_len, sizeof(suseconds_t));
    char iso80601_dt_buf[sizeof "YYYY-mm-ddTHH:MM:SS.mmm+OOOO\0"];
 
    size_t i;
-   for (i = 0; i < ids_array_len; ++i) {
+   if (iteration_count < 1) {
+      iteration_count = ids_array_len;
+   }
+   suseconds_t* elapsed_usecs = calloc(iteration_count, sizeof(suseconds_t));
 
+   for (i = 0; i < iteration_count; ++i) {
+
+      long curr_id = ids_array[i % ids_array_len];
       bson_init (&query);
-      bson_append_int32(&query, "_id", -1, ids_array[i]);
+      bson_append_int64(&query, "_id", -1, curr_id);
    
-	  struct timeval start_tp;
-	  gettimeofday(&start_tp, NULL);
+         struct timeval start_tp;
+         gettimeofday(&start_tp, NULL);
 
       cursor = mongoc_collection_find_with_opts (
          collection,
@@ -127,44 +137,49 @@ int sleep_ms;*/
          NULL); /* read prefs, NULL for default */
 
       if (mongoc_cursor_next (cursor, &doc)) {
-	     struct timeval end_tp;
-	     gettimeofday(&end_tp, NULL);
+         struct timeval end_tp;
+         gettimeofday(&end_tp, NULL);
          elapsed_usecs[i] = ((end_tp.tv_sec - start_tp.tv_sec) * 1000000) + (end_tp.tv_usec - start_tp.tv_usec);
-		 strftime(iso80601_dt_buf, sizeof(iso80601_dt_buf), "%FT%T", localtime(&start_tp.tv_sec));
-		 iso80601_dt_buf[sizeof(iso80601_dt_buf)] = '\0';
-		 int milli = start_tp.tv_usec / 1000;
-		 sprintf(iso80601_dt_buf + 19, ".%03d", milli);
-		 strftime(iso80601_dt_buf + 23, 6, "%z\0", localtime(&start_tp.tv_sec));
-         fprintf (stdout, "{_id:%d}\t%s\t%u\t%u\n", ids_array[i], iso80601_dt_buf, elapsed_usecs[i], doc->len);
+         strftime(iso80601_dt_buf, sizeof(iso80601_dt_buf), "%FT%T", localtime(&start_tp.tv_sec));
+         iso80601_dt_buf[sizeof(iso80601_dt_buf)] = '\0';
+         int milli = start_tp.tv_usec / 1000;
+         sprintf(iso80601_dt_buf + 19, ".%03d", milli);
+         strftime(iso80601_dt_buf + 23, 6, "%z\0", localtime(&start_tp.tv_sec));
+         fprintf (stdout, "{_id:%ld}\t%s\t%u\t%u\n", curr_id, iso80601_dt_buf, elapsed_usecs[i], doc->len);
       } else {
          elapsed_usecs[i] = -1;
-		 fprintf (stderr, "No document for _id: %d was found\n", ids_array[i]);
-	  }
-   
+         fprintf (stderr, "No document for _id: %ld was found\n", curr_id);
+      }
+
       if (mongoc_cursor_error (cursor, &error)) {
          fprintf (stderr, "Cursor Failure: %s\n", error.message);
          return EXIT_FAILURE;
       }
 
-   } //end while(ids_array[i])
+      bson_destroy (&query);
+      mongoc_cursor_destroy (cursor);
+
+      if (sleep_ms > 0) {
+         usleep(sleep_ms * 1000);
+      }
+
+   } //end for(;;++i)
 
    free(ids_array);
-   bson_destroy (&query);
-   mongoc_cursor_destroy (cursor);
    mongoc_collection_destroy (collection);
    mongoc_client_destroy (client);
 
    mongoc_cleanup ();
 
-   if (ids_array_len < 100) {
+   if (iteration_count < 100) {
       fprintf(stderr, "Less than 100 queries executed. Skipping the slowest-times-by-percentile report due to insufficient sample size.\n");
    } else {
-      qsort (elapsed_usecs, ids_array_len, sizeof(suseconds_t), comp_susec);
-      size_t idx1 = (size_t)(0.50 * (float)ids_array_len);
-      size_t idx2 = (size_t)(0.75 * (float)ids_array_len);
-      size_t idx3 = (size_t)(0.90 * (float)ids_array_len);
-      size_t idx4 = (size_t)(0.95 * (float)ids_array_len);
-      size_t idx5 = (size_t)(0.99 * (float)ids_array_len);
+      qsort (elapsed_usecs, iteration_count, sizeof(suseconds_t), comp_susec);
+      size_t idx1 = (size_t)(0.50 * (float)iteration_count);
+      size_t idx2 = (size_t)(0.75 * (float)iteration_count);
+      size_t idx3 = (size_t)(0.90 * (float)iteration_count);
+      size_t idx4 = (size_t)(0.95 * (float)iteration_count);
+      size_t idx5 = (size_t)(0.99 * (float)iteration_count);
       fprintf(stdout, "P50: %u, P75: %u, P90: %u, P95: %u, P99: %u\n", elapsed_usecs[idx1], 
               elapsed_usecs[idx2], elapsed_usecs[idx3], elapsed_usecs[idx4], elapsed_usecs[idx5]);
    }

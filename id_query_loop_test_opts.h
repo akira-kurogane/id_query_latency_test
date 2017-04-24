@@ -1,5 +1,6 @@
 int help_flag;
 char* conn_uri;
+char* database_name;
 char* collection_name;
 int iteration_count;
 int sleep_ms;
